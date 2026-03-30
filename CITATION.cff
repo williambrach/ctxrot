@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "ctxrot"
+abstract: "Understand your ReAct agent's context window and fight context rot."
+type: software
+authors:
+  - family-names: Brach
+    given-names: William
+repository-code: "https://github.com/williambrach/ctxrot"
+license: MIT
