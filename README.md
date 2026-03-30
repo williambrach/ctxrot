@@ -40,7 +40,7 @@ dspy.configure(
 ### 2. Run your agent as usual
 
 ```python
-react = dspy.ReAct(MySignature, tools=[tool_a, tool_b])
+react = dspy.ReAct("question -> answer", tools=[tool_a, tool_b])
 result = react(question="What is the capital of France?")
 ```
 
@@ -71,6 +71,8 @@ ctxrot reset --db ctxrot.db
 ctxrot deep-analyze --db ctxrot.db --session <session_id>
 
 ```
+
+> more in [LLM analysis](#llm-analysis) section below
 
 ## How it works
 
@@ -111,7 +113,7 @@ As context grows, agents start repeating themselves and producing less useful ou
 A declining ratio across iterations means the model generates less output relative to its input a sign the context window is saturated.
 > `efficiency_ratio = completion_tokens / prompt_tokens`
 
-**LLM analysis**
+### LLM analysis
 
 Uses RLM to perform semantic analysis on a recorded session. The RLM receives session metadata, growth curves, and pre-computed rot metrics, and can pull full prompt/completion text on demand via tools (`get_completion_text`, `get_messages_json`, `get_tool_output`, `compute_repetition_score`). Output is a structured markdown report: session overview, context growth pattern, efficiency trends, repetition analysis, tool impact, rot diagnosis (severity + onset iteration), and recommendations.
 
@@ -128,8 +130,8 @@ Options:
   --sub-model      TEXT     Sub LM for semantic analysis      [default: openai/gpt-5.4-mini]
   --max-iters      INT     Max RLM REPL iterations            [default: 15]
   --max-calls      INT     Max sub-LLM calls                  [default: 30]
-  --api-key        TEXT     API key (or OPENAI_API_KEY env)
-  --api-base       TEXT     API base URL (or OPENAI_API_BASE env)
+  --api-key        TEXT     API key ( OPENAI_API_KEY or API_KEY  in .env)
+  --api-base       TEXT     API base URL (or OPENAI_API_BASE or API_BASE in .env)
   --env-file       TEXT     Path to .env file                  [default: .env]
   --json                    Output full result as JSON
   --verbose    -v           Show RLM reasoning steps
