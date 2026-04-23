@@ -1,0 +1,468 @@
+# ctxrot
+
+> Understand your ReAct agent's context window and fight context rot.
+
+# Overview
+
+## ctxrot
+
+# ctxrot { #hero-title }
+
+!!! note "Alpha"
+    ctxrot currently supports only [DSPy>=3.1.3](https://dspy.ai) and may produce mis-aligned output.
+    Please [report any issues](https://github.com/williambrach/ctxrot/issues) you encounter — the API may change.
+
+## Install
+
+```bash
+uv add ctxrot
+```
+
+## What it does
+
+- **Records** every LM call and tool call from your DSPy agent into a local SQLite database via a drop-in `CtxRotCallback`.
+- **Detects** repetition and efficiency degradation — the two signals of context rot — without making any LLM calls of its own.
+- **Visualizes** sessions in a Textual TUI dashboard with growth curves, per-iteration metrics, and an RLM tree view.
+- **Exports** sessions to JSONL in the [opentraces](https://github.com/JayFarei/opentraces) `TraceRecord` shape (or a native format), ready to share or archive.
+- **Deep-analyzes** a session with an RLM agent that produces a structured rot report — optional, requires Deno + an API key.
+
+## Next steps
+
+- :material-rocket-launch-outline: &nbsp; **[Quickstart](quickstart.md)** — attach the callback, run your agent, open the dashboard.
+- :material-book-open-page-variant-outline: &nbsp; **[Concepts](concepts.md)** — what context rot is and the metrics ctxrot uses to detect it.
+- :material-console: &nbsp; **[CLI reference](cli.md)** — `dashboard`, `analyze`, `export`, `deep-analyze`, `reset`.
+- :material-api: &nbsp; **[Python API](api.md)** — `CtxRotCallback`, `CtxRotStore`, `analyze_session`, `run_deep_analysis`.
+
+
+## Quickstart
+
+# Quickstart
+
+A minimal walk-through: attach the callback, run your DSPy agent, open the dashboard.
+
+## 1. Install
+
+```bash
+uv add ctxrot
+```
+
+ctxrot requires Python 3.12+ and [DSPy ≥ 3.1.3](https://dspy.ai).
+
+## 2. Attach the callback
+
+```python
+import dspy
+from ctxrot import CtxRotCallback
+
+callback = CtxRotCallback(db_path="ctxrot.db", store_content=True)
+
+dspy.configure(
+    lm=dspy.LM("openai/gpt-5.4-mini"),
+    callbacks=[callback],
+)
+```
+
+- A new session is created automatically each time a top-level DSPy module starts. Every LM call and tool call is recorded to SQLite.
+- Set `store_content=True` to also store full prompt messages and completion text — required for repetition detection.
+
+## 3. Run your agent as usual
+
+```python
+react = dspy.ReAct("question -> answer", tools=[tool_a, tool_b])
+result = react(question="What is the capital of France?")
+```
+
+No changes to your agent code — the callback just listens.
+
+## 4. View the dashboard
+
+```bash
+ctxrot --db ctxrot.db
+```
+
+The TUI opens on the **Feed** — a list of sessions with LM-call and tool-call feeds.
+
+## 5. Run a local analysis
+
+Without leaving the terminal, you can compute repetition and efficiency metrics for the latest session:
+
+```bash
+ctxrot analyze --db ctxrot.db
+```
+
+See [Concepts](concepts.md) for what the numbers mean, and the [CLI reference](cli.md) for every command and flag.
+
+## Next
+
+- **Understand the metrics** → [Concepts](concepts.md)
+- **Dig into a session with an LLM** → [Deep analysis](deep-analysis.md)
+- **Share a session with a teammate** → [Export](export.md)
+
+
+# Concepts
+
+## Overview
+
+# Concepts
+
+## What context rot is
+
+As context grows, LLM agents start repeating themselves and producing less useful output. The model is still generating tokens — it just isn't *saying* anything new. ctxrot makes this visible with two families of signals that are cheap to compute and require no LLM calls of their own:
+
+1. **Repetition** — how much each new completion overlaps with earlier ones
+2. **Efficiency** — how much the model outputs relative to the input it receives
+
+## How the callback works
+
+A SQLite database is created at `db_path`. [`CtxRotCallback`](api.md#ctxrotcallback) hooks into DSPy's `BaseCallback` and populates three tables at runtime — a session row on `on_module_start`, an LM call row on `on_lm_end`, and a tool call row on `on_tool_end`.
+
+```
+Your DSPy agent  →  CtxRotCallback  →  SQLite  →  TUI dashboard / analysis
+   (unchanged)       (just listens)     (local)
+```
+
+Sessions close automatically when the top-level DSPy module returns. The terminal state is recorded as `errored` if the module raised and `completed` otherwise; both `analyze` and `deep-analyze` surface it.
+
+Session state lives in a `ContextVar`, so `asyncify`/`streamify` worker threads each see an isolated session — concurrent agent calls don't stomp on each other.
+
+### What gets tracked
+
+| Per LM call | Per tool call | Per session |
+|---|---|---|
+| Prompt tokens, completion tokens | Tool name, duration | Model, mode (`react`, `chainofthought`, …) |
+| Cache read / write tokens | Estimated output tokens | Start time, end time |
+| Cost, duration | — | Terminal state (`completed` / `errored`) |
+| *(opt)* full prompt messages + completion text | *(opt)* full input JSON + output text | — |
+
+The "opt" rows only populate if you passed `store_content=True` when constructing the callback.
+
+## Context rot detection
+
+Local signals only. No LLM calls. Token counting uses [tokie](https://github.com/chonkie-inc/tokie).
+
+!!! warning "Requires content capture"
+    Repetition analysis needs `store_content=True` when you construct `CtxRotCallback`. DSPy structural markers (`[[ ## ... ## ]]`) are stripped before comparison so they don't inflate overlap scores.
+
+### Repetition — per-iteration
+
+| Metric | What it measures | How |
+|--------|-----------------|-----|
+| `ngram_jaccard` | Word-level overlap vs previous completion | Jaccard similarity of word 3-gram sets. `> 0.4` = looping. |
+| `sequence_similarity` | Character-level similarity vs previous completion | `rapidfuzz.fuzz.ratio / 100`. Catches paraphrased repetition that n-grams miss. |
+| `cumulative_max` | Max overlap vs *any* prior completion | Max `ngram_jaccard` across every earlier iteration. Catches non-consecutive loops. |
+
+`analyze` flags the **onset iteration** as the first iteration whose `ngram_jaccard` exceeds `0.4`.
+
+### Efficiency — per-iteration
+
+A declining ratio across iterations means the model generates less output relative to its input — a sign the context window is saturated.
+
+```python
+efficiency_ratio = completion_tokens / prompt_tokens
+```
+
+`analyze` also reports the initial and final efficiency so you can see drift at a glance.
+
+## What the metrics are *not*
+
+- **Not a hallucination detector.** A high `ngram_jaccard` means the agent is repeating itself, not that the repeated content is wrong.
+- **Not a universal cost budget.** `efficiency_ratio` is a *shape* metric; declining ratios can be normal for certain prompts (e.g., classification) and still be healthy.
+- **Not a replacement for manual review.** They're triage signals — [`deep-analyze`](deep-analysis.md) uses them as one input among several when producing its report.
+
+
+## Export
+
+# Export
+
+`ctxrot export` emits one session per line as JSONL. The default format matches the [opentraces](https://www.opentraces.ai/schema/latest) `TraceRecord` schema v0.3.0, so ctxrot sessions can be shared, archived, or handed off to opentraces for publishing to the Hugging Face Hub without re-mapping.
+
+## Privacy
+
+!!! warning "Content is exported raw"
+    `export` emits **raw LM messages, completions, and tool I/O** whenever they were captured at run time (i.e. `CtxRotCallback(store_content=True)`). ctxrot prints a warning once at the start of every export; reviewing the output for secrets and PII before sharing it is your responsibility.
+
+If content was *not* captured, those fields pass through as `null` — ctxrot does not retroactively reconstruct them. Redaction is on the roadmap but not yet available.
+
+## Selecting sessions
+
+Filters compose with **AND**; explicit `--session` bypasses everything else.
+
+| Flags | What you get |
+|-------|--------------|
+| *(none)* | Latest session (same default as `analyze` / `deep-analyze`) |
+| `--all` | Every session in the DB |
+| `-s ID` (repeatable) | Explicit session IDs |
+| `--since DT` / `--until DT` | ISO-datetime range on session start time |
+| `--only-errored` / `--only-completed` | Terminal-state filter (mutually exclusive) |
+
+## Flags
+
+```text
+Usage: ctxrot export [OPTIONS]
+
+Options:
+  --db              -d   TEXT     SQLite database path            [default: ctxrot.db]
+  --session         -s   TEXT     Session ID (repeatable for multiple IDs)
+  --all                           Export every session in the DB
+  --since                TEXT     Sessions started at/after this ISO datetime
+  --until                TEXT     Sessions started at/before this ISO datetime
+  --only-errored                  Only sessions with terminal_state='errored'
+  --only-completed                Only sessions with terminal_state='completed'
+  --format          -f   TEXT     "opentraces" or "ctxrot"         [default: opentraces]
+  --output          -o   TEXT     Output file path (stdout if omitted)
+```
+
+## Examples
+
+```bash
+# Latest session to a file
+ctxrot export -o latest.jsonl
+
+# Everything in the DB
+ctxrot export --all -o all.jsonl
+
+# A few specific sessions
+ctxrot export -s 7a3f9e2c1d0b -s 9b1c2d3e4f5a -o picked.jsonl
+
+# All failed sessions on or after April 6, 2026
+ctxrot export --since 2026-04-06 --only-errored -o failures.jsonl
+
+# Native ctxrot format (debug / roundtrip)
+ctxrot export --all --format ctxrot -o all-native.jsonl
+```
+
+## Record shape (opentraces v0.3.0)
+
+One JSONL line per session. Abridged example:
+
+```json
+{
+  "schema_version": "0.3.0",
+  "trace_id": "7a3f9e2c1d0b",
+  "session_id": "7a3f9e2c1d0b",
+  "timestamp_start": "2026-04-22T14:37:26.875+00:00",
+  "timestamp_end":   "2026-04-22T14:37:29.375+00:00",
+  "agent":    { "name": "rlm", "model": "openai/gpt-4o-mini" },
+  "outcome":  { "success": true, "terminal_state": "goal_reached" },
+  "lifecycle": "final",
+  "metrics": {
+    "total_steps": 2,
+    "total_input_tokens": 203,
+    "total_output_tokens": 65,
+    "total_cache_read_tokens": 60,
+    "total_cache_creation_tokens": 10,
+    "total_duration_s": 1.7,
+    "cache_hit_rate": 0.2956,
+    "estimated_cost_usd": 0.003
+  },
+  "steps": [
+    {
+      "step_index": 1,
+      "role": "assistant",
+      "model": "openai/gpt-4o-mini",
+      "content": "thinking...",
+      "timestamp": "2026-04-22T14:37:26.875+00:00",
+      "call_type": "action",
+      "token_usage": { "input_tokens": 123, "output_tokens": 45,
+                       "cache_read_tokens": 20, "cache_write_tokens": 10 },
+      "tool_calls":    [ { "tool_call_id": "t1", "tool_name": "web_search",
+                           "input": { "q": "..." }, "duration_ms": 279 } ],
+      "observations":  [ { "source_call_id": "t1", "content": "results: ..." } ]
+    }
+  ],
+  "metadata": { "ctxrot_version": "0.1.0", "source": "dspy-callback",
+                "framework": "dspy", "mode": "rlm", "max_prompt_tokens": 123 }
+}
+```
+
+A few things worth knowing:
+
+- **`agent.name`** is the DSPy top-level module class name (lower-cased) — e.g. `"rlm"`, `"react"`, `"chainofthought"` — falling back to `"dspy-agent"` if the mode wasn't captured.
+- **Tool I/O is split** across `steps[].tool_calls[]` (invocation: `tool_call_id`, `tool_name`, `input`, `duration_ms`) and `steps[].observations[]` (result: `source_call_id`, `content`, `error`), keyed together by the tool call id.
+- **RLM reasoning tree.** For `rlm` sessions, each step carries `call_type` (`"action"` or `"sub_query"`). `sub_query` steps additionally carry `parent_step`, pointing to the `step_index` of the `action` that triggered them — this is how to reconstruct the reasoning tree from an exported record. Non-RLM sessions omit both fields.
+- **`outcome.terminal_state`** uses the schema's enum, not ctxrot's internal labels. The mapping:
+
+    | ctxrot (SQLite `sessions.terminal_state`) | Exported `outcome` |
+    |---|---|
+    | `"completed"` | `{ "success": true,  "terminal_state": "goal_reached" }` |
+    | `"errored"`   | `{ "success": false, "terminal_state": "error" }` |
+    | *null* (session never finished) | `outcome` omitted; `lifecycle: "provisional"` |
+
+- **`metrics.cache_hit_rate`** is a fraction in `[0, 1]` (per the schema's rate convention), not a percentage.
+- **`metrics.total_duration_s`** is in seconds (the SQLite layer stores ms; the mapper converts).
+- **Dropped from the v0.3.0 export but kept in the native format:** per-step `cost`, `error`, `duration_ms`, raw `messages`, and RLM `iteration` — none of these have a home in `TraceRecord.Step`. If you need them, use `--format ctxrot`.
+
+
+
+## Deep analysis
+
+# Deep analysis
+
+`ctxrot deep-analyze` uses DSPy's [`RLM`](https://dspy.ai) (Reasoning Language Model) to perform **semantic** analysis on a recorded session — the kind of reasoning that string metrics can't do on their own.
+
+The RLM receives session metadata, growth curves, and pre-computed rot metrics up front, and can pull full prompt/completion text on demand via tools. The output is a structured markdown report: session overview, context growth pattern, efficiency trends, repetition analysis, tool impact, rot diagnosis (severity + onset iteration), and recommendations.
+
+!!! warning "Deno required"
+    `deep-analyze` runs a sandboxed Python interpreter via [Deno](https://deno.land).
+    Install with `curl -fsSL https://deno.land/install.sh | sh` or see [the Deno install guide](https://deno.land/#installation).
+
+!!! warning "Work in progress"
+    Deep analysis is still early and may produce misaligned output. Prompts, tool surface, and report structure are subject to change.
+
+## Quickstart
+
+```bash
+ctxrot deep-analyze --db ctxrot.db --session 7a3f9e2c1d0b
+```
+
+If `--session` is omitted, the latest session is used. Credentials are resolved in this order:
+
+1. Explicit `--api-key` / `--api-base` flags
+2. `OPENAI_API_KEY` / `OPENAI_API_BASE` environment variables
+3. `API_KEY` / `API_BASE` environment variables
+4. Variables loaded from `--env-file` (default `.env`)
+
+## How it works
+
+```
+                  ┌───────────────────┐
+ session data ──► │  RLM (main LM)    │ ──► markdown report
+ growth curves    │  REPL, sandboxed  │     (7 sections)
+ pre-computed     │  via Deno         │
+ rot metrics      └─────────┬─────────┘
+                            │
+                            ▼
+            ┌───────────────────────────────┐
+            │ tools the RLM can call:       │
+            │  compute_repetition_score     │
+            │  compute_all_repetition_scores│
+            │  get_completion_text(seq)     │
+            │  get_messages_json(seq)       │
+            │  get_tool_output(id)          │
+            └───────────────────────────────┘
+```
+
+The RLM writes small Python snippets that run inside the sandbox. Those snippets inspect the session, call the ctxrot-provided tools, and occasionally query a cheaper **sub-LM** (`--sub-model`) for semantic questions — e.g. "is this repetition structural DSPy format vs substantive looping?". The budget on sub-LM calls keeps costs bounded.
+
+## Flags
+
+```text
+Usage: ctxrot deep-analyze [OPTIONS]
+
+Options:
+  --db         -d  TEXT     SQLite database path              [default: ctxrot.db]
+  --session    -s  TEXT     Session ID (latest if omitted)
+  --query      -q  TEXT     Focus area or question            [default: "Perform a comprehensive context rot analysis."]
+  --model      -m  TEXT     Main LM for RLM reasoning         [default: openai/gpt-5.4]
+  --sub-model      TEXT     Sub LM for semantic analysis      [default: openai/gpt-5.4-mini]
+  --max-iters      INT      Max RLM REPL iterations           [default: 15]
+  --max-calls      INT      Max sub-LLM calls                 [default: 30]
+  --api-key        TEXT     API key (or OPENAI_API_KEY / API_KEY in .env)
+  --api-base       TEXT     API base URL (or OPENAI_API_BASE / API_BASE in .env)
+  --env-file       TEXT     Path to .env file                 [default: .env]
+  --json                    Output full result as JSON
+  --verbose    -v           Show RLM reasoning steps
+  --yes        -y           Skip cost warning confirmation
+```
+
+## Cost
+
+Running cost depends on session size and how many sub-LLM calls the RLM actually makes. For a typical 10–20 iteration ReAct session with `gpt-5.4` as the main model and `gpt-5.4-mini` as the sub-model, expect **~$0.10 – $2.00 per run**. `deep-analyze` prints a cost estimate and asks for confirmation unless you pass `--yes`.
+
+## Programmatic use
+
+`deep-analyze` is a thin wrapper around [`run_deep_analysis`](api.md#run_deep_analysis). Call it directly from Python if you want the report + trajectory returned as a dict:
+
+```python
+from ctxrot import CtxRotStore, run_deep_analysis
+
+store = CtxRotStore("ctxrot.db", read_only=True)
+result = run_deep_analysis(
+    store,
+    session_id="7a3f9e2c1d0b",
+    query="Focus on why the prompt tokens plateau after iteration 8.",
+)
+
+print(result["report"])
+print(f"RLM used {len(result['trajectory'])} REPL iterations")
+```
+
+
+# Reference
+
+## CLI
+
+# CLI reference
+
+ctxrot ships a [Typer](https://typer.tiangolo.com/)-based CLI. Every command reads from (or writes to) a SQLite database created by `CtxRotCallback` — default `ctxrot.db` in the current directory.
+
+!!! tip
+    All commands accept `--db, -d` to point at a different database. Commands that read a single session default to the latest one unless you pass `--session, -s`.
+
+## `ctxrot` / `ctxrot dashboard`
+
+Launch the Textual TUI dashboard. Both forms are equivalent.
+
+```bash
+ctxrot --db ctxrot.db
+ctxrot dashboard --db ctxrot.db --session 7a3f9e2c1d0b
+```
+
+| Flag | Short | Default | Meaning |
+|------|-------|---------|---------|
+| `--db` | `-d` | `ctxrot.db` | Path to the SQLite database |
+| `--session` | `-s` | *(latest)* | Open the dashboard directly on this session |
+
+Press `q` to quit.
+
+## `ctxrot analyze`
+
+Compute repetition + efficiency metrics on a single session using only local signals — no LLM calls. Reads the database read-only.
+
+```bash
+ctxrot analyze --db ctxrot.db --session 7a3f9e2c1d0b
+ctxrot analyze --json > analysis.json
+```
+
+| Flag | Short | Default | Meaning |
+|------|-------|---------|---------|
+| `--db` | `-d` | `ctxrot.db` | Database path |
+| `--session` | `-s` | *(latest)* | Session ID to analyze |
+| `--json` | — | `false` | Output the full result dict as JSON |
+
+Human output prints per-iteration `ngram_jaccard / sequence_similarity / cumulative_max` scores, flags the onset iteration if any exceeds `0.4`, and lists per-iteration efficiency ratios. The summary (including `initial_efficiency` / `final_efficiency`) is available via `--json`. See [Concepts](concepts.md) for what the numbers mean.
+
+## `ctxrot export`
+
+Emit one session per line as JSONL in the [opentraces](https://www.opentraces.ai/schema/latest) `TraceRecord` v0.3.0 shape (default) or a native ctxrot format.
+
+```bash
+ctxrot export --db ctxrot.db --all -o all.jsonl
+```
+
+See the dedicated [Export](export.md) page for the full reference — filter flags, output formats, and the privacy note.
+
+## `ctxrot deep-analyze`
+
+RLM-powered semantic analysis. Produces a structured markdown report with sections for session overview, context growth, efficiency trends, repetition analysis, tool impact, rot diagnosis, and recommendations.
+
+```bash
+ctxrot deep-analyze --db ctxrot.db --session 7a3f9e2c1d0b
+```
+
+!!! warning "Requires Deno + API key"
+    `deep-analyze` uses `dspy.RLM`, which runs a sandboxed Python interpreter via [Deno](https://deno.land). Install Deno first, and provide an API key via `--api-key`, `OPENAI_API_KEY`, or a `.env` file.
+
+See [Deep analysis](deep-analysis.md) for the full flag list, cost estimates, and credential resolution order.
+
+## `ctxrot reset`
+
+Truncate all tables — sessions, LM calls, tool calls — in the database. Destructive, no confirmation prompt.
+
+```bash
+ctxrot reset --db ctxrot.db
+```
+
+## Commands marked *coming soon*
+
+`ctxrot tail` (stream LM calls in real-time) and `ctxrot summary` (one-shot session stats) currently print `Coming soon` and exit. They're tracked as future work.

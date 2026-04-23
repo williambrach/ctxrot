@@ -1,0 +1,18 @@
+# ctxrot
+
+> Understand your ReAct agent's context window and fight context rot.
+
+## Overview
+
+- [ctxrot](https://williambrach.github.io/ctxrot/index.md): Landing page — pitch, install, links.
+- [Quickstart](https://williambrach.github.io/ctxrot/quickstart/index.md): Attach CtxRotCallback, run agent, open dashboard.
+
+## Concepts
+
+- [Overview](https://williambrach.github.io/ctxrot/concepts/index.md): What context rot is and how ctxrot detects it.
+- [Export](https://williambrach.github.io/ctxrot/export/index.md): JSONL export in opentraces or native format.
+- [Deep analysis](https://williambrach.github.io/ctxrot/deep-analysis/index.md): RLM-powered semantic rot analysis.
+
+## Reference
+
+- [CLI](https://williambrach.github.io/ctxrot/cli/index.md): CLI reference for dashboard / analyze / export / deep-analyze / reset.
