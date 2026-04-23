@@ -36,7 +36,7 @@ ctxrot --db ctxrot.db
 
 ## Learn more
 
-[Documentation →](https://williambrach.github.io/ctxrot/)
+[Documentation](https://williambrach.github.io/ctxrot/)
 
 The site also publishes an [`llms.txt`](https://williambrach.github.io/ctxrot/llms.txt) / [`llms-full.txt`](https://williambrach.github.io/ctxrot/llms-full.txt) for LLM agents that want to ingest the docs directly.
 
