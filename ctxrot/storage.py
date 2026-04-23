@@ -36,10 +36,12 @@ class CtxRotStore:
         con = self._con
         con.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
-                id         TEXT PRIMARY KEY,
-                started_at TEXT NOT NULL,
-                model      TEXT,
-                mode       TEXT
+                id             TEXT PRIMARY KEY,
+                started_at     TEXT NOT NULL,
+                ended_at       TEXT,
+                model          TEXT,
+                mode           TEXT,
+                terminal_state TEXT
             )
         """)
         con.execute("""
@@ -110,6 +112,17 @@ class CtxRotStore:
         self._write(
             "INSERT INTO sessions (id, started_at, model, mode) VALUES (?, ?, ?, ?)",
             [session_id, _ts(started_at), model, mode],
+        )
+
+    def update_session_end(
+        self,
+        session_id: str,
+        ended_at: float,
+        terminal_state: str,
+    ) -> None:
+        self._write(
+            "UPDATE sessions SET ended_at = ?, terminal_state = ? WHERE id = ?",
+            [_ts(ended_at), terminal_state, session_id],
         )
 
     def insert_lm_call(
@@ -214,14 +227,52 @@ class CtxRotStore:
         ).fetchone()
         return row[0] if row else None
 
+    def get_session_ids(
+        self,
+        since: str | None = None,
+        until: str | None = None,
+        terminal_state: str | None = None,
+    ) -> list[str]:
+        """Return session IDs matching the filters, ordered by started_at ASC.
+
+        `since` and `until` are compared against `started_at` as ISO-8601 strings
+        (lexicographic order matches chronological order). `terminal_state` is an
+        exact match.
+        """
+        clauses: list[str] = []
+        params: list = []
+        if since is not None:
+            clauses.append("started_at >= ?")
+            params.append(since)
+        if until is not None:
+            clauses.append("started_at <= ?")
+            params.append(until)
+        if terminal_state is not None:
+            clauses.append("terminal_state = ?")
+            params.append(terminal_state)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = self._con.execute(
+            f"SELECT id FROM sessions {where} ORDER BY started_at ASC",
+            params,
+        ).fetchall()
+        return [r[0] for r in rows]
+
     def get_session(self, session_id: str) -> dict | None:
         row = self._con.execute(
-            "SELECT id, started_at, model, mode FROM sessions WHERE id = ?",
+            "SELECT id, started_at, ended_at, model, mode, terminal_state "
+            "FROM sessions WHERE id = ?",
             [session_id],
         ).fetchone()
         if not row:
             return None
-        return {"id": row[0], "started_at": row[1], "model": row[2], "mode": row[3]}
+        return {
+            "id": row[0],
+            "started_at": row[1],
+            "ended_at": row[2],
+            "model": row[3],
+            "mode": row[4],
+            "terminal_state": row[5],
+        }
 
     def get_growth_data(self, session_id: str) -> list[dict]:
         rows = self._con.execute(
@@ -361,7 +412,9 @@ class CtxRotStore:
                    sum(cost) AS cost,
                    sum(duration_ms) AS duration_ms,
                    count(*) AS call_count,
-                   count(error) AS error_count
+                   count(error) AS error_count,
+                   (SELECT terminal_state FROM sessions
+                    WHERE sessions.id = lm_calls.session_id) AS terminal_state
                FROM lm_calls
                GROUP BY session_id
                ORDER BY min(started_at) DESC
@@ -380,6 +433,7 @@ class CtxRotStore:
                 "duration_ms": r[7],
                 "call_count": r[8],
                 "error_count": r[9],
+                "terminal_state": r[10],
             }
             for r in rows
         ]
@@ -452,7 +506,8 @@ class CtxRotStore:
         try:
             rows = self._con.execute(
                 """SELECT seq, messages_json, completion,
-                          prompt_char_count, completion_char_count
+                          prompt_char_count, completion_char_count,
+                          prompt_tokens, completion_tokens
                    FROM lm_calls
                    WHERE session_id = ? AND messages_json IS NOT NULL
                    ORDER BY seq""",
@@ -467,6 +522,82 @@ class CtxRotStore:
                 "completion": r[2],
                 "prompt_char_count": r[3],
                 "completion_char_count": r[4],
+                "prompt_tokens": r[5],
+                "completion_tokens": r[6],
+            }
+            for r in rows
+        ]
+
+    def get_lm_calls_full(self, session_id: str) -> list[dict]:
+        """Return full lm_calls rows for a session, ordered by seq.
+
+        Used by the export path — the other readers return only the subsets
+        they need. Content columns pass through as stored (`null` if the
+        callback ran with `store_content=False`).
+        """
+        rows = self._con.execute(
+            """SELECT id, seq, model, started_at, ended_at, duration_ms,
+                      prompt_tokens, completion_tokens, cache_read_tokens,
+                      cache_write_tokens, cost, error,
+                      messages_json, completion,
+                      prompt_char_count, completion_char_count,
+                      call_type, iteration, parent_seq
+               FROM lm_calls WHERE session_id = ?
+               ORDER BY seq""",
+            [session_id],
+        ).fetchall()
+        return [
+            {
+                "id": r[0],
+                "seq": r[1],
+                "model": r[2],
+                "started_at": r[3],
+                "ended_at": r[4],
+                "duration_ms": r[5],
+                "prompt_tokens": r[6],
+                "completion_tokens": r[7],
+                "cache_read_tokens": r[8],
+                "cache_write_tokens": r[9],
+                "cost": r[10],
+                "error": r[11],
+                "messages_json": r[12],
+                "completion": r[13],
+                "prompt_char_count": r[14],
+                "completion_char_count": r[15],
+                "call_type": r[16],
+                "iteration": r[17],
+                "parent_seq": r[18],
+            }
+            for r in rows
+        ]
+
+    def get_tool_calls_full(self, session_id: str) -> list[dict]:
+        """Return full tool_calls rows for a session, ordered by started_at.
+
+        Used by the export path. Content columns pass through as stored
+        (`null` if the callback ran with `store_content=False`).
+        """
+        rows = self._con.execute(
+            """SELECT id, after_seq, tool_name, started_at, ended_at,
+                      duration_ms, output_tokens_est, error,
+                      input_json, output_text, output_char_count
+               FROM tool_calls WHERE session_id = ?
+               ORDER BY started_at""",
+            [session_id],
+        ).fetchall()
+        return [
+            {
+                "id": r[0],
+                "after_seq": r[1],
+                "tool_name": r[2],
+                "started_at": r[3],
+                "ended_at": r[4],
+                "duration_ms": r[5],
+                "output_tokens_est": r[6],
+                "error": r[7],
+                "input_json": r[8],
+                "output_text": r[9],
+                "output_char_count": r[10],
             }
             for r in rows
         ]
@@ -502,8 +633,15 @@ class CtxRotStore:
         self._con.commit()
 
     def close(self) -> None:
-        con = self._con
+        con = getattr(self, "_con", None)
+        if con is None:
+            return
         del self._con
+        if not self._read_only:
+            try:
+                con.execute("PRAGMA journal_mode=DELETE")
+            except sqlite3.Error as e:
+                _log.debug("journal_mode switch failed on close: %s", e)
         con.close()
 
 

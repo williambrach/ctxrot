@@ -10,6 +10,7 @@ ctxrot.db-wal
 ctxrot.db
 .DS_Store
 pr.md
+.playwright-mcp
 # C extensions
 *.so
 .env

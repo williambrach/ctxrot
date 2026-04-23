@@ -22,7 +22,9 @@ performance as context windows grow during multi-turn agent sessions.
 ## Inputs
 
 `session_data` is a Python dict with these top-level keys:
-- "session": {{id, started_at, model, mode}} — session metadata
+- "session": {{id, started_at, ended_at, model, mode, terminal_state}} — \
+session metadata. terminal_state is one of "completed", "errored", or null \
+(null = legacy session, outcome unknown).
 - "summary": {{total_calls, total_prompt, total_completion, total_cache_read, \
 cache_hit_pct, total_cost, total_duration_ms, max_prompt_tokens}} — aggregates
 - "growth": list of per-iteration dicts with {{seq, prompt_tokens, \
@@ -88,6 +90,8 @@ consecutive or non-consecutive completions
 (compare tool_impact avg_tokens with prompt growth deltas)
 - Cache behavior: high cache_hit_pct = stable prefix; low = volatile context
 - Cost acceleration: cost per iteration increasing faster than linearly
+- Terminal state: session["terminal_state"] == "errored" is load-bearing \
+evidence for severe rot; factor it into the Rot Diagnosis severity rating.
 
 ## Report Structure
 

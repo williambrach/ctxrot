@@ -24,6 +24,7 @@ API_BASE=https://...        # optional, for custom endpoints
 | `react_multihop.py` | `ReAct` | `ctxrot-react.db` | Multi-hop QA with search — context growth across iterations |
 | `custom_module.py` | Custom `Module` | `ctxrot-custom.db` | Pipeline of 3 LM calls with growing prompts |
 | `rlm_reasoning.py` | `RLM` | `ctxrot-rlm.db` | REPL reasoning loop — most dramatic context growth |
+| `optimizer_bootstrap.py` | `BootstrapFewShot` + `ChainOfThought` | `ctxrot-optimizer.db` | Compile-time LM-call volume — one session per trainset example |
 
 ## Run
 

@@ -41,7 +41,7 @@ dspy.configure(
 
 # --- ReAct agent ---
 react = dspy.ReAct(
-    "question -> answer",
+    "question -> answer",  # ty:ignore[invalid-argument-type]
     tools=[search],
     max_iters=5,
 )

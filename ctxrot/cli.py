@@ -63,9 +63,13 @@ def analyze(
         typer.echo(json.dumps(result, indent=2))
         return
 
-    s = result["summary"]
+    summary = result["summary"]
     typer.echo(f"\nContext Rot Analysis — session {sid[:8]}")
     typer.echo("=" * 50)
+
+    terminal_state = summary.get("terminal_state")
+    if terminal_state:
+        typer.echo(f"Terminal state: {terminal_state}")
 
     if not result["has_content"]:
         typer.echo(
@@ -75,29 +79,31 @@ def analyze(
         )
         typer.echo("\n  Showing efficiency ratios only:\n")
     else:
-        if s["repetition_detected"]:
+        if summary["repetition_detected"]:
             typer.echo(
-                f"\n  REPETITION DETECTED at iteration #{s['onset_iteration']}"
-                f"  (max overlap: {s['max_repetition']:.2f})"
+                f"\n  REPETITION DETECTED at iteration #{summary['onset_iteration']}"
+                f"  (max overlap: {summary['max_repetition']:.2f})"
             )
         else:
-            typer.echo(f"\n  Repetition: LOW (max overlap: {s['max_repetition']:.2f})")
+            typer.echo(
+                f"\n  Repetition: LOW (max overlap: {summary['max_repetition']:.2f})"
+            )
 
         typer.echo("\n  Per-iteration repetition:")
-        for r in result["repetition"]:
-            tag = " <<<" if r["ngram_jaccard"] > 0.4 else ""
+        for row in result["repetition"]:
+            tag = " <<<" if row["ngram_jaccard"] > 0.4 else ""
             typer.echo(
-                f"    #{r['seq']:>2d}  ngram={r['ngram_jaccard']:.2f}"
-                f"  seq={r['sequence_similarity']:.2f}"
-                f"  cumul={r['cumulative_max']:.2f}{tag}"
+                f"    #{row['seq']:>2d}  ngram={row['ngram_jaccard']:.2f}"
+                f"  seq={row['sequence_similarity']:.2f}"
+                f"  cumul={row['cumulative_max']:.2f}{tag}"
             )
 
     if result["efficiency"]:
         typer.echo("\n  Efficiency (completion/prompt ratio):")
-        for e in result["efficiency"]:
+        for row in result["efficiency"]:
             typer.echo(
-                f"    #{e['seq']:>2d}  {e['efficiency_ratio']:.4f}"
-                f"  ({e['completion_tokens']:,} / {e['prompt_tokens']:,})"
+                f"    #{row['seq']:>2d}  {row['efficiency_ratio']:.4f}"
+                f"  ({row['completion_tokens']:,} / {row['prompt_tokens']:,})"
             )
 
     typer.echo("")
@@ -216,6 +222,115 @@ def deep_analyze(
         )
 
     typer.echo(f"\n  ---" f"\n  RLM used {len(result['trajectory'])} REPL iterations.")
+
+
+@app.command()
+def export(
+    db: str = typer.Option("ctxrot.db", "--db", "-d"),
+    session: list[str] = typer.Option(
+        [],
+        "--session",
+        "-s",
+        help="Session ID (repeatable for multiple IDs). Bypasses filters.",
+    ),
+    all_: bool = typer.Option(
+        False, "--all", help="Export every session in the DB"
+    ),
+    since: str | None = typer.Option(
+        None,
+        "--since",
+        help="Filter: sessions started at/after this ISO datetime",
+    ),
+    until: str | None = typer.Option(
+        None,
+        "--until",
+        help="Filter: sessions started at/before this ISO datetime",
+    ),
+    only_errored: bool = typer.Option(
+        False,
+        "--only-errored",
+        help="Filter: only sessions with terminal_state='errored'",
+    ),
+    only_completed: bool = typer.Option(
+        False,
+        "--only-completed",
+        help="Filter: only sessions with terminal_state='completed'",
+    ),
+    fmt: str = typer.Option(
+        "opentraces",
+        "--format",
+        "-f",
+        help="Output format: 'opentraces' (TraceRecord shape) or 'ctxrot' (native)",
+    ),
+    output: str | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output file path (stdout if omitted)",
+    ),
+) -> None:
+    """Export sessions to JSONL (opentraces TraceRecord shape by default)."""
+    import sys
+
+    from ctxrot.export import resolve_session_ids, stream_export
+    from ctxrot.storage import CtxRotStore
+
+    if only_errored and only_completed:
+        typer.echo(
+            "Error: --only-errored and --only-completed are mutually exclusive.",
+            err=True,
+        )
+        raise typer.Exit(2)
+
+    if fmt not in ("opentraces", "ctxrot"):
+        typer.echo(
+            f"Error: --format must be 'opentraces' or 'ctxrot', got {fmt!r}.",
+            err=True,
+        )
+        raise typer.Exit(2)
+
+    typer.echo(
+        "WARNING: export includes raw prompts, completions, and tool outputs "
+        "when available. Review for secrets/PII before sharing. Redaction is "
+        "not yet available.",
+        err=True,
+    )
+
+    store = CtxRotStore(db, read_only=True)
+    try:
+        ids = resolve_session_ids(
+            store,
+            sessions=session,
+            all_=all_,
+            since=since,
+            until=until,
+            only_errored=only_errored,
+            only_completed=only_completed,
+        )
+
+        def _progress(n: int) -> None:
+            typer.echo(f"  exported {n} sessions...", err=True)
+
+        if output is None:
+            count = stream_export(
+                store,
+                ids,
+                sys.stdout,
+                fmt=fmt,
+            )
+        else:
+            with open(output, "w", encoding="utf-8") as f:
+                count = stream_export(
+                    store,
+                    ids,
+                    f,
+                    fmt=fmt,
+                    progress=_progress,
+                )
+    finally:
+        store.close()
+
+    typer.echo(f"  done: {count} session(s) exported.", err=True)
 
 
 @app.command()

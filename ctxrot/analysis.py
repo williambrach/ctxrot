@@ -19,7 +19,10 @@ def analyze_session(store: CtxRotStore, session_id: str) -> dict:
       - "repetition": per-iteration repetition scores (or None)
       - "efficiency": per-iteration efficiency ratios
       - "summary": human-readable summary dict
+      - "session": session metadata (id, started_at, ended_at, model, mode,
+                   terminal_state)
     """
+    session = store.get_session(session_id)
     growth = store.get_growth_data(session_id)
     content = store.get_lm_call_content(session_id)
 
@@ -30,6 +33,7 @@ def analyze_session(store: CtxRotStore, session_id: str) -> dict:
         "repetition": None,
         "efficiency": efficiency,
         "summary": {},
+        "session": session,
     }
 
     if content:
@@ -150,22 +154,28 @@ def _build_summary(result: dict) -> dict:
         "max_repetition": 0.0,
     }
 
-    rep = result.get("repetition")
-    if rep:
-        max_ngram = max((r["ngram_jaccard"] for r in rep), default=0.0)
+    session = result.get("session") or {}
+    summary["terminal_state"] = session.get("terminal_state")
+
+    repetition_rows = result.get("repetition")
+    if repetition_rows:
+        max_ngram = max(
+            (row["ngram_jaccard"] for row in repetition_rows),
+            default=0.0,
+        )
         summary["max_repetition"] = max_ngram
 
         # Find onset — first iteration where ngram_jaccard exceeds threshold
-        for r in rep:
-            if r["ngram_jaccard"] > REPETITION_THRESHOLD:
+        for row in repetition_rows:
+            if row["ngram_jaccard"] > REPETITION_THRESHOLD:
                 summary["repetition_detected"] = True
-                summary["onset_iteration"] = r["seq"]
+                summary["onset_iteration"] = row["seq"]
                 break
 
-    eff = result.get("efficiency")
-    if eff and len(eff) >= 2:
-        first_iteration = eff[0]
-        last_iteration = eff[-1]
+    efficiency_rows = result.get("efficiency")
+    if efficiency_rows and len(efficiency_rows) >= 2:
+        first_iteration = efficiency_rows[0]
+        last_iteration = efficiency_rows[-1]
         summary["initial_efficiency"] = first_iteration["efficiency_ratio"]
         summary["final_efficiency"] = last_iteration["efficiency_ratio"]
 

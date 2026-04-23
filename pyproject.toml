@@ -20,6 +20,7 @@ keywords = ["llm", "dspy", "context-window", "token-usage", "analytics", "contex
 dependencies = [
     "dspy>=3.1.3",
     "litellm>=1.82.6",
+    "opentraces>=0.3.3",
     "rapidfuzz>=3.14.3",
     "textual>=8.1.1",
     "textual-plotext>=1.0.1",
@@ -32,6 +33,12 @@ dev = [
     "black>=26.3.1",
     "ruff>=0.15.7",
     "ty>=0.0.25",
+]
+docs = [
+    "mkdocs-material>=9.7.6",
+    "mkdocstrings[python]>=0.27",
+    "mkdocs-llmstxt-md>=0.1",
+    "black>=26.3.1",
 ]
 
 [project.scripts]

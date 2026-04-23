@@ -11,6 +11,7 @@ from textual.widgets import Collapsible, Static
 from textual_plotext import PlotextPlot
 
 from ctxrot import pricing
+from ctxrot.tokenizer import count_tokens
 from ctxrot.tui.tree_view import RlmTreeView
 
 # Distinct colors (RGB tuples)
@@ -84,13 +85,13 @@ class IterationContent(Container):
 
     def compose(self) -> ComposeResult:
         seq = self._row["seq"]
-        prompt_chars = int(self._row["prompt_char_count"] or 0)
-        compl_chars = int(self._row["completion_char_count"] or 0)
+        prompt_tokens = int(self._row["prompt_tokens"] or 0)
+        compl_tokens = int(self._row["completion_tokens"] or 0)
 
         yield Static(
             f"{'─' * 60}\n"
-            f"  Iteration #{seq}  ({prompt_chars:,} prompt chars,"
-            f" {compl_chars:,} completion chars)\n"
+            f"  Iteration #{seq}  ({prompt_tokens:,} prompt tokens,"
+            f" {compl_tokens:,} completion tokens)\n"
             f"{'─' * 60}",
             classes="iter-header",
         )
@@ -103,12 +104,12 @@ class IterationContent(Container):
                 for msg in messages:
                     role = msg.get("role", "?")
                     content = self._extract_content(msg)
-                    char_count = len(content)
+                    token_count = count_tokens(content)
                     preview = content[:80].replace("\n", " ").strip()
                     color = ROLE_COLORS.get(role, "white")
                     title = (
                         f"[{color}][{role}][/{color}]"
-                        f" ({char_count:,} chars) {preview}..."
+                        f" ({token_count:,} tokens) {preview}..."
                     )
                     yield Collapsible(
                         Static(content, classes="msg-content"),
@@ -119,7 +120,7 @@ class IterationContent(Container):
                 raw = messages_json
                 yield Collapsible(
                     Static(raw, classes="msg-content"),
-                    title=f"[raw] ({len(raw):,} chars)",
+                    title=f"[raw] ({count_tokens(raw):,} tokens)",
                     collapsed=True,
                 )
 
@@ -130,7 +131,7 @@ class IterationContent(Container):
             color = ROLE_COLORS.get("assistant", "green")
             title = (
                 f"[{color}]Completion[/{color}]"
-                f" ({len(completion):,} chars) {preview}..."
+                f" ({count_tokens(completion):,} tokens) {preview}..."
             )
             yield Collapsible(
                 Static(completion, classes="msg-content"),

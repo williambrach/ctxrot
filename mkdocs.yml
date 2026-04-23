@@ -1,0 +1,126 @@
+site_name: ctxrot
+site_description: Understand your ReAct agent's context window and fight context rot.
+site_url: https://williambrach.github.io/ctxrot/
+site_author: William Brach
+
+repo_url: https://github.com/williambrach/ctxrot
+repo_name: williambrach/ctxrot
+edit_uri: edit/main/docs/
+
+copyright: MIT License
+
+theme:
+  name: material
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - search.suggest
+    - search.highlight
+    - toc.follow
+  font:
+    text: Inter
+    code: JetBrains Mono
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["."]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            separate_signature: true
+            signature_crossrefs: true
+            merge_init_into_class: true
+            show_signature_annotations: true
+            members_order: source
+            filters: ["!^_"]
+  - llmstxt-md:
+      sections:
+        Overview:
+          - index.md: "Landing page — pitch, install, links."
+          - quickstart.md: "Attach CtxRotCallback, run agent, open dashboard."
+        Concepts:
+          - concepts.md: "What context rot is and how ctxrot detects it."
+          - export.md: "JSONL export in opentraces or native format."
+          - deep-analysis.md: "RLM-powered semantic rot analysis."
+        Reference:
+          - cli.md: "CLI reference for dashboard / analyze / export / deep-analyze / reset."
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - index.md
+  - Get Started: 
+      - Quickstart: quickstart.md
+      - Examples : examples.md
+  - Concepts:
+      - Overview: concepts.md
+      - Export: export.md
+      - Deep analysis: deep-analysis.md
+  - Reference:
+      - CLI: cli.md
+      - Python API: api.md
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/williambrach/ctxrot
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/ctxrot/
