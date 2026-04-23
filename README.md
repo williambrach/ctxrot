@@ -36,7 +36,7 @@ ctxrot --db ctxrot.db
 
 ## Learn more
 
-Full [Documentation →](https://williambrach.github.io/ctxrot/) — concepts, CLI reference, Python API, export formats, deep analysis, and runnable examples.
+[Documentation →](https://williambrach.github.io/ctxrot/)
 
 The site also publishes an [`llms.txt`](https://williambrach.github.io/ctxrot/llms.txt) / [`llms-full.txt`](https://williambrach.github.io/ctxrot/llms-full.txt) for LLM agents that want to ingest the docs directly.
 
