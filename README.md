@@ -2,8 +2,6 @@
 
 *Understand your ReAct agent's context window and fight context rot.*
 
-**[Documentation →](https://williambrach.github.io/ctxrot/)**
-
 
 > **Note:** ctxrot currently supports only [DSPy>=3.1.3](https://dspy.ai) and may produce mis-aligned output. Please [report any issues](https://github.com/williambrach/ctxrot/issues) you encounter — the API may change.
 
@@ -38,7 +36,7 @@ ctxrot --db ctxrot.db
 
 ## Learn more
 
-Full docs — concepts, CLI reference, Python API, export formats, deep analysis, and runnable examples — live at **<https://williambrach.github.io/ctxrot/>**.
+Full [Documentation →](https://williambrach.github.io/ctxrot/) — concepts, CLI reference, Python API, export formats, deep analysis, and runnable examples.
 
 The site also publishes an [`llms.txt`](https://williambrach.github.io/ctxrot/llms.txt) / [`llms-full.txt`](https://williambrach.github.io/ctxrot/llms-full.txt) for LLM agents that want to ingest the docs directly.
 
