@@ -1,0 +1,414 @@
+/* ctxrot — custom Material theme overrides
+   amber primary, near-black dark mode, tighter typography */
+
+:root {
+  --ctx-amber-300: #fcd34d;
+  --ctx-amber-400: #fbbf24;
+  --ctx-amber-500: #f59e0b;
+  --ctx-amber-600: #d97706;
+  --ctx-amber-700: #b45309;
+  --ctx-amber-800: #92400e;
+}
+
+/* ── Light mode (default) ───────────────────────────────── */
+[data-md-color-scheme="default"] {
+  --md-default-bg-color:         #ffffff;
+  --md-default-bg-color--light:  rgba(255, 255, 255, 0.85);
+  --md-default-bg-color--lighter: rgba(255, 255, 255, 0.65);
+  --md-default-bg-color--lightest: rgba(255, 255, 255, 0.35);
+
+  --md-default-fg-color:         #0a0a0a;
+  --md-default-fg-color--light:  rgba(10, 10, 10, 0.72);
+  --md-default-fg-color--lighter: rgba(10, 10, 10, 0.42);
+  --md-default-fg-color--lightest: rgba(10, 10, 10, 0.10);
+
+  --md-primary-fg-color:         var(--ctx-amber-700);
+  --md-primary-fg-color--light:  var(--ctx-amber-600);
+  --md-primary-fg-color--dark:   var(--ctx-amber-800);
+  --md-primary-bg-color:         #ffffff;
+  --md-primary-bg-color--light:  rgba(255, 255, 255, 0.85);
+
+  --md-accent-fg-color:          var(--ctx-amber-600);
+  --md-accent-fg-color--transparent: rgba(217, 119, 6, 0.10);
+  --md-accent-bg-color:          #ffffff;
+
+  --md-code-bg-color:            #f7f7f5;
+  --md-code-fg-color:            #1a1a1a;
+
+  --md-typeset-a-color:          var(--ctx-amber-700);
+  --md-typeset-mark-color:       rgba(245, 158, 11, 0.30);
+}
+
+/* ── Dark mode ──────────────────────────────────────────── */
+[data-md-color-scheme="slate"] {
+  --md-hue: 30;
+
+  --md-default-bg-color:         #0a0a0a;
+  --md-default-bg-color--light:  rgba(10, 10, 10, 0.85);
+  --md-default-bg-color--lighter: rgba(10, 10, 10, 0.65);
+  --md-default-bg-color--lightest: rgba(10, 10, 10, 0.35);
+
+  --md-default-fg-color:         rgba(255, 255, 255, 0.94);
+  --md-default-fg-color--light:  rgba(255, 255, 255, 0.72);
+  --md-default-fg-color--lighter: rgba(255, 255, 255, 0.48);
+  --md-default-fg-color--lightest: rgba(255, 255, 255, 0.14);
+
+  --md-primary-fg-color:         var(--ctx-amber-500);
+  --md-primary-fg-color--light:  var(--ctx-amber-400);
+  --md-primary-fg-color--dark:   var(--ctx-amber-600);
+  --md-primary-bg-color:         #0a0a0a;
+  --md-primary-bg-color--light:  rgba(10, 10, 10, 0.85);
+
+  --md-accent-fg-color:          var(--ctx-amber-400);
+  --md-accent-fg-color--transparent: rgba(251, 191, 36, 0.10);
+  --md-accent-bg-color:          #0a0a0a;
+
+  --md-code-bg-color:            #0f0f0f;
+  --md-code-fg-color:            #e5e5e5;
+
+  --md-typeset-a-color:          var(--ctx-amber-400);
+  --md-typeset-mark-color:       rgba(245, 158, 11, 0.25);
+}
+
+/* ── Header ────────────────────────────────────────────── */
+.md-header {
+  box-shadow: none;
+  background-color: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.md-header--shadow {
+  box-shadow: none;
+}
+
+.md-header__title,
+.md-header__topic,
+.md-header__button,
+.md-header__ellipsis,
+.md-header__source,
+.md-header__inner {
+  color: var(--md-default-fg-color);
+}
+
+.md-header__title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-size: 1rem;
+  margin-left: 0.3rem;
+}
+
+.md-header__button.md-logo {
+  padding: 0.2rem;
+  margin: 0.2rem;
+}
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  width: auto;
+  height: 2rem;
+  image-rendering: auto;
+}
+
+/* Repo source (GitHub link) */
+.md-source {
+  color: var(--md-default-fg-color--light);
+}
+.md-source:hover {
+  color: var(--md-accent-fg-color);
+}
+.md-source__fact {
+  color: var(--md-default-fg-color--light);
+}
+
+/* Tabs (under header) */
+.md-tabs {
+  background-color: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+}
+.md-tabs__link {
+  color: var(--md-default-fg-color--light);
+  font-weight: 500;
+  opacity: 1;
+  transition: color 0.15s;
+}
+.md-tabs__link:hover,
+.md-tabs__link--active {
+  color: var(--md-accent-fg-color);
+}
+
+/* ── Search bar ────────────────────────────────────────── */
+.md-search__form {
+  background-color: var(--md-code-bg-color);
+  border-radius: 8px;
+  height: 2.1rem;
+  transition: background-color 0.15s, box-shadow 0.15s;
+}
+[data-md-color-scheme="default"] .md-search__form {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+[data-md-color-scheme="default"] .md-search__form:hover {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+[data-md-color-scheme="default"] .md-search__form:focus-within {
+  background-color: #ffffff;
+  box-shadow: 0 0 0 1px var(--md-accent-fg-color),
+              0 0 0 4px var(--md-accent-fg-color--transparent);
+}
+[data-md-color-scheme="slate"] .md-search__form {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+[data-md-color-scheme="slate"] .md-search__form:hover {
+  background-color: rgba(255, 255, 255, 0.09);
+}
+[data-md-color-scheme="slate"] .md-search__form:focus-within {
+  background-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 1px var(--md-accent-fg-color),
+              0 0 0 4px var(--md-accent-fg-color--transparent);
+}
+.md-search__input {
+  color: var(--md-default-fg-color);
+  font-size: 0.82rem;
+}
+.md-search__input::placeholder {
+  color: var(--md-default-fg-color--lighter);
+}
+.md-search__icon {
+  color: var(--md-default-fg-color--lighter);
+}
+.md-search__input + .md-search__icon {
+  color: var(--md-default-fg-color--light);
+}
+
+/* ── Copy Markdown button (from mkdocs-llmstxt-md) ─────── */
+#llms-copy-button {
+  top: 4.2rem !important;
+  right: 1.2rem !important;
+}
+#llms-copy-button button {
+  background: var(--md-default-bg-color) !important;
+  color: var(--md-default-fg-color--light) !important;
+  border: 1px solid var(--md-default-fg-color--lightest) !important;
+  border-radius: 999px !important;
+  padding: 0.35rem 0.9rem !important;
+  font-size: 0.72rem !important;
+  font-weight: 550 !important;
+  font-family: inherit !important;
+  letter-spacing: -0.005em !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04),
+              0 1px 2px rgba(0, 0, 0, 0.02) !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+}
+#llms-copy-button button:hover {
+  border-color: var(--ctx-amber-500) !important;
+  color: var(--ctx-amber-700) !important;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.12),
+              0 1px 3px rgba(245, 158, 11, 0.08) !important;
+  transform: translateY(-1px);
+}
+#llms-copy-button button:active {
+  transform: translateY(0);
+}
+[data-md-color-scheme="slate"] #llms-copy-button button {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: var(--md-default-fg-color--light) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+[data-md-color-scheme="slate"] #llms-copy-button button:hover {
+  color: var(--ctx-amber-400) !important;
+  border-color: var(--ctx-amber-500) !important;
+}
+
+/* ── Typography ────────────────────────────────────────── */
+.md-typeset {
+  font-feature-settings: "ss01", "cv11";
+}
+
+.md-typeset h1 {
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-size: 2.4rem;
+  line-height: 1.1;
+  margin-bottom: 0.6em;
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset h2 {
+  font-weight: 650;
+  letter-spacing: -0.018em;
+  font-size: 1.55rem;
+  margin-top: 2.2em;
+  margin-bottom: 0.6em;
+}
+
+.md-typeset h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 1.8em;
+}
+
+.md-typeset p,
+.md-typeset li {
+  line-height: 1.72;
+}
+
+/* Links: subtle underline that brightens on hover */
+.md-typeset a {
+  text-decoration: underline;
+  text-decoration-color: var(--md-accent-fg-color--transparent);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+.md-typeset a:hover {
+  text-decoration-color: var(--md-accent-fg-color);
+}
+
+/* ── Code ──────────────────────────────────────────────── */
+.md-typeset code {
+  border-radius: 5px;
+  padding: 0.12em 0.42em;
+  font-size: 0.86em;
+  font-feature-settings: "calt", "liga" 0;
+}
+
+[data-md-color-scheme="slate"] .md-typeset code {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #f5f5f5;
+}
+
+.md-typeset pre > code {
+  border-radius: 10px;
+  padding: 1.1em 1.2em;
+  font-size: 0.84em;
+}
+
+.md-typeset .highlight {
+  border-radius: 10px;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .highlight {
+  background-color: #0f0f0f;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.md-typeset .highlight .filename {
+  background-color: transparent;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  color: var(--md-default-fg-color--light);
+  font-weight: 500;
+  font-size: 0.78em;
+  padding: 0.5em 1em;
+}
+
+/* ── Tables ────────────────────────────────────────────── */
+.md-typeset table:not([class]) {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  box-shadow: none;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-default-fg-color--lightest);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+/* ── Admonitions ───────────────────────────────────────── */
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 10px;
+  border-left-width: 3px;
+  box-shadow: none;
+  border-color: var(--md-default-fg-color--lightest);
+  border-left-color: var(--md-accent-fg-color);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .admonition,
+[data-md-color-scheme="slate"] .md-typeset details {
+  background-color: rgba(255, 255, 255, 0.025);
+}
+
+.md-typeset .admonition.note,
+.md-typeset details.note {
+  border-left-color: var(--ctx-amber-500);
+}
+.md-typeset .note > .admonition-title::before,
+.md-typeset .note > summary::before {
+  background-color: var(--ctx-amber-500);
+}
+
+/* ── Buttons / chips ──────────────────────────────────── */
+.md-button--primary {
+  background-color: var(--ctx-amber-500);
+  border-color: var(--ctx-amber-500);
+  color: #0a0a0a !important;
+  font-weight: 600;
+}
+.md-button--primary:hover {
+  background-color: var(--ctx-amber-400);
+  border-color: var(--ctx-amber-400);
+}
+
+/* ── Landing hero ambient glow ───────────────────────── */
+[data-md-color-scheme="slate"] body {
+  background-image:
+    radial-gradient(
+      ellipse 80% 32% at 50% -6%,
+      rgba(245, 158, 11, 0.07),
+      transparent 60%
+    );
+  background-attachment: fixed;
+}
+
+[data-md-color-scheme="default"] body {
+  background-color: #ffffff;
+  background-image: none;
+}
+
+/* Hide the auto-rendered h1 on the index page */
+.md-typeset h1#hero-title {
+  display: none;
+}
+
+/* ── Nav polish ──────────────────────────────────────── */
+.md-nav__title {
+  font-weight: 650;
+  letter-spacing: -0.005em;
+}
+
+.md-nav__link--active,
+.md-nav__link--active > code {
+  color: var(--md-accent-fg-color);
+  font-weight: 600;
+}
+
+/* Selection */
+::selection {
+  background-color: rgba(245, 158, 11, 0.25);
+  color: inherit;
+}
+
+/* Scrollbar (webkit) */
+[data-md-color-scheme="slate"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+[data-md-color-scheme="slate"] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+[data-md-color-scheme="slate"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+}
+[data-md-color-scheme="slate"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
