@@ -86,6 +86,10 @@ One JSONL line per session. Abridged example:
       "step_index": 1,
       "role": "assistant",
       "model": "openai/gpt-4o-mini",
+      "messages": [
+        { "role": "system", "content": "You are a helpful assistant..." },
+        { "role": "user",   "content": "Find me a wine under $20" }
+      ],
       "content": "thinking...",
       "timestamp": "2026-04-22T14:37:26.875+00:00",
       "call_type": "action",
@@ -116,5 +120,6 @@ A few things worth knowing:
 
 - **`metrics.cache_hit_rate`** is a fraction in `[0, 1]` (per the schema's rate convention), not a percentage.
 - **`metrics.total_duration_s`** is in seconds (the SQLite layer stores ms; the mapper converts).
-- **Dropped from the v0.3.0 export but kept in the native format:** per-step `cost`, `error`, `duration_ms`, raw `messages`, and RLM `iteration` — none of these have a home in `TraceRecord.Step`. If you need them, use `--format ctxrot`.
+- **Prompt messages** (system prompt + history + current user turn) ride along as `steps[].messages` when captured via `CtxRotCallback(store_content=True)`. Each entry is the raw `{role, content, ...}` dict that DSPy sent to the model — the simplest way to reconstruct what the LM actually saw at that step. Omitted entirely if content wasn't captured.
+- **Dropped from the v0.3.0 export but kept in the native format:** per-step `cost`, `error`, `duration_ms`, and RLM `iteration` — none of these have a home in `TraceRecord.Step`. If you need them, use `--format ctxrot`.
 

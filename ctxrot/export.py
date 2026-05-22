@@ -152,9 +152,13 @@ def _build_outcome(terminal_state: str | None) -> dict | None:
 def _build_step(lm: dict, tool_call_rows: list[dict]) -> dict:
     """Build one opentraces Step.
 
-    Fields without a schema home (per-step cost/error/duration/messages/
-    iteration) are intentionally dropped — keeping them would make the record
-    non-compliant. Use the `ctxrot` native format if you need that detail.
+    Prompt messages (`messages_json`) ride along as `messages` when they were
+    captured (`CtxRotCallback(store_content=True)`); they're the only way to
+    recover the system prompt + user turn + prior history that drove this step.
+
+    Fields without a schema home (per-step cost/error/duration/iteration) are
+    intentionally dropped — keeping them would make the record non-compliant.
+    Use the `ctxrot` native format if you need that detail.
     """
     tool_calls: list[dict] = []
     observations: list[dict] = []
@@ -189,6 +193,9 @@ def _build_step(lm: dict, tool_call_rows: list[dict]) -> dict:
     }
     if lm["model"]:
         step["model"] = lm["model"]
+    messages = _parse_messages(lm.get("messages_json"))
+    if messages is not None:
+        step["messages"] = messages
     if lm["completion"]:
         step["content"] = lm["completion"]
     if lm["started_at"]:
@@ -217,6 +224,22 @@ def _parse_tool_input(input_json: str | None) -> dict | None:
     except (json.JSONDecodeError, TypeError):
         return None
     return parsed if isinstance(parsed, dict) else None
+
+
+def _parse_messages(messages_json: str | None) -> list | None:
+    """Return the stored prompt messages as a list, or None if unavailable.
+
+    `messages_json` is the LM's full input message list (system + history +
+    current user turn) serialized at on_lm_start. Non-list payloads (e.g. the
+    fallback `str(obj)` from a serialization failure) are dropped.
+    """
+    if not messages_json:
+        return None
+    try:
+        parsed = json.loads(messages_json)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return parsed if isinstance(parsed, list) else None
 
 
 def build_native_record(

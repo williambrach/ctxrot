@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from rich.markup import escape
+from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
-from textual.widgets import Collapsible, Static
+from textual.widgets import Collapsible, Static, TextArea
 from textual_plotext import PlotextPlot
 
 from ctxrot import pricing
@@ -42,6 +44,41 @@ ROLE_COLORS = {
 }
 
 
+class _LazyMessageBlock(Collapsible):
+    """Collapsible whose body is built only on first expand.
+
+    Why: a single LM message can be 20k+ tokens. Building a widget for every
+    message up front (and re-rendering on each toggle) makes the content panel
+    laggy and unresponsive. Defer construction until the user actually opens
+    the message, and use TextArea(read_only=True) — it's virtualized, so it
+    can display arbitrarily large text without the auto-height truncation
+    that Static can hit inside a nested Collapsible/VerticalScroll layout,
+    and it ignores Rich markup so brackets in user content (`[INST]`,
+    JSON, code, DSPy `[[ ## ... ## ]]` markers) render verbatim.
+    """
+
+    def __init__(self, content_text: str, *, title: str) -> None:
+        super().__init__(title=title, collapsed=True)
+        self._content_text = content_text
+        self._populated = False
+
+    @on(Collapsible.Toggled)
+    def _populate_on_first_open(self, event: Collapsible.Toggled) -> None:
+        if event.collapsible is not self:
+            return
+        if self._populated or self.collapsed:
+            return
+        self._populated = True
+        viewer = TextArea(
+            self._content_text,
+            read_only=True,
+            soft_wrap=True,
+            show_line_numbers=False,
+            classes="msg-content",
+        )
+        self.query_one(Collapsible.Contents).mount(viewer)
+
+
 class IterationContent(Container):
     """Composite widget for a single iteration's content with collapsible messages."""
 
@@ -64,6 +101,12 @@ class IterationContent(Container):
     }
     IterationContent .msg-content {
         height: auto;
+        padding: 0 0 0 2;
+    }
+    IterationContent TextArea.msg-content {
+        height: auto;
+        max-height: 30;
+        border: none;
         padding: 0 0 0 2;
     }
     """
@@ -96,7 +139,7 @@ class IterationContent(Container):
             classes="iter-header",
         )
 
-        # Render messages as collapsibles
+        # Render messages as collapsibles (lazy — body built on first expand)
         messages_json = self._row.get("messages_json")
         if messages_json:
             try:
@@ -105,39 +148,29 @@ class IterationContent(Container):
                     role = msg.get("role", "?")
                     content = self._extract_content(msg)
                     token_count = count_tokens(content)
-                    preview = content[:80].replace("\n", " ").strip()
+                    preview = escape(content[:80].replace("\n", " ").strip())
                     color = ROLE_COLORS.get(role, "white")
                     title = (
-                        f"[{color}][{role}][/{color}]"
+                        f"[{color}][{escape(role)}][/{color}]"
                         f" ({token_count:,} tokens) {preview}..."
                     )
-                    yield Collapsible(
-                        Static(content, classes="msg-content"),
-                        title=title,
-                        collapsed=True,
-                    )
+                    yield _LazyMessageBlock(content, title=title)
             except (json.JSONDecodeError, TypeError):
                 raw = messages_json
-                yield Collapsible(
-                    Static(raw, classes="msg-content"),
-                    title=f"[raw] ({count_tokens(raw):,} tokens)",
-                    collapsed=True,
+                yield _LazyMessageBlock(
+                    raw, title=f"\\[raw] ({count_tokens(raw):,} tokens)"
                 )
 
         # Render completion as collapsible
         completion = self._row.get("completion")
         if completion:
-            preview = completion[:80].replace("\n", " ").strip()
+            preview = escape(completion[:80].replace("\n", " ").strip())
             color = ROLE_COLORS.get("assistant", "green")
             title = (
                 f"[{color}]Completion[/{color}]"
                 f" ({count_tokens(completion):,} tokens) {preview}..."
             )
-            yield Collapsible(
-                Static(completion, classes="msg-content"),
-                title=title,
-                collapsed=True,
-            )
+            yield _LazyMessageBlock(completion, title=title)
 
     @staticmethod
     def _extract_content(msg: dict) -> str:
